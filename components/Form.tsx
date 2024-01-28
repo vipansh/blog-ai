@@ -17,18 +17,22 @@ import { toast } from "sonner";
 const Form = () => {
   async function action(formData: FormData) {
     const prompt = formData.get("topic");
-    //     if (!prompt) {
-    //       toast.error("Please enter a topic name.");
-    //       return;
-    //     }
+    if (!prompt) {
+      toast.error("Please enter a topic name.");
+      return;
+    }
     try {
       const result = await createCompletion(prompt as string);
       if (result.error) {
-        toast.error(result.error);
+        toast.error("An error occurred while generating the blog post. Please try again.");
+        console.error("Error", result);
+      } else {
+        console.log({ result });
+        // Handle success scenario,
       }
-      console.log({ result });
     } catch (error: any) {
-      toast.error(error.message);
+      toast.error("An error occurred while processing your request. Please try again.");
+      console.error("Error", error);
     }
   }
 
@@ -41,7 +45,11 @@ const Form = () => {
             Generate a unique and engaging blog post in seconds
           </CardDescription>
         </CardHeader>
-        <form action={action}>
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          const formData = new FormData(e.target as HTMLFormElement);
+          await action(formData);
+        }}>
           <CardContent>
             <div className="grid w-full items-center gap-4">
               <div className="flex flex-col space-y-1.5">

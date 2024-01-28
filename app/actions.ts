@@ -5,7 +5,6 @@ import { supabaseClient } from "@/lib/supabase";
 import OpenAI from "openai";
 import { decode } from "base64-arraybuffer";
 import { SDXL } from "segmind-npm";
-import { randomUUID } from "crypto";
 
 const apiKey = process.env.NEXT_PUBLIC_SIGMIND_API_KEY;
 const openAiKey = process.env.OPENAI_KEY;
@@ -49,18 +48,20 @@ export async function createCompletion(prompt: string): Promise<any> {
     img_width: 1024,
     img_height: 1024,
     refiner: true,
-    base64: false,
+    base64: true,
   });
   const imageBuffer = sigmindResponse.data;
   if (!imageBuffer) {
     throw new ApplicationError("Error generating image");
   }
 
-  const filePath = randomUUID() + "-";
+  const timestamp = new Date().toISOString().replace(/[^0-9]/g, "");
+  const filePath = `blog2_${timestamp}`;
+
   const { data, error } = await supabaseClient.storage
     .from("images")
-    .upload(`blog-${filePath}`, decode(imageBuffer), {
-      contentType: "image/png",
+    .upload(filePath, decode(imageBuffer.image), {
+      contentType: "image/jpeg",
     });
 
   if (error) {
@@ -76,8 +77,8 @@ export async function createCompletion(prompt: string): Promise<any> {
       {
         title: prompt,
         content: blogContent,
-        image_url: imageUrl,
-        user_id: "123",
+        imageUrl: imageUrl,
+        userId: "123",
       },
     ])
     .select();
@@ -86,5 +87,5 @@ export async function createCompletion(prompt: string): Promise<any> {
     throw new Error("Failed to create blog post");
   }
 
-  return blogData;
+  return { ...blogData, imageBuffer };
 }
