@@ -4,100 +4,70 @@ import { ApplicationError } from "@/lib/error";
 import { supabaseClient } from "@/lib/supabase";
 import OpenAI from "openai";
 import { decode } from "base64-arraybuffer";
-import { RealisticVision } from "segmind-npm";
+import { SDXL } from "segmind-npm";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 
 const apiKey = process.env.NEXT_PUBLIC_SIGMIND_API_KEY;
 const openAiKey = process.env.OPENAI_KEY;
 const projectId = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-export async function createCompletion(prompt: string): Promise<any> {
+function validateInputs(prompt: string): void {
   if (!prompt) {
     throw new Error("Prompt is missing");
   }
 
-  if (!openAiKey) {
-    throw new ApplicationError("Missing environment variable OPENAI_KEY");
+  if (!openAiKey || !projectId || !apiKey) {
+    throw new ApplicationError("One or more environment variables are missing");
   }
-  if (!projectId) {
-    throw new ApplicationError("Database URL is missing");
-  }
-  if (!apiKey) {
-    throw new ApplicationError("Segmind api key missing");
-  }
+}
 
+async function createOpenAICompletion(prompt: string): Promise<string> {
   const openai = new OpenAI({ apiKey: openAiKey });
-  const sdxl = new RealisticVision(apiKey);
 
   const chatCompletion = await openai.chat.completions.create({
     messages: [
       {
         role: "system",
         content:
-          "You are a helpful assistant. Your task is to create a well-researched, SEO-optimized blog post in markdown format.",
+          "You are a helpful assistant that's going to create a well-researched and SEO-optimized blog post.",
       },
-      {
-        role: "user",
-        content: "Please ensure the title is SEO-friendly.",
-      },
-      {
-        role: "system",
-        content: "Understood. The title will be crafted to be SEO-friendly.",
-      },
-      {
-        role: "user",
-        content:
-          "The response should be a JSON object with keys for title, content, and tags.",
-      },
-      {
-        role: "system",
-        content: "The response will be provided in the specified JSON format.",
-      },
-      {
-        role: "user",
-        content:
-          "The content should also be SEO-friendly and formatted in markdown.",
-      },
-      {
-        role: "system",
-        content: "The content will be SEO-friendly and formatted in markdown.",
-      },
-      {
-        role: "user",
-        content:
-          "Lastly, I need the tags to be an array of strings relevant to the content of the title.",
-      },
-      {
-        role: "system",
-        content:
-          "The tags will be an array of strings relevant to the content of the title.",
-      },
+      { role: "user", content: prompt },
     ],
     model: "gpt-3.5-turbo",
-    response_format: { type: "json_object" },
   });
 
-  const blogContent = chatCompletion.choices[0].message?.content;
+  return chatCompletion.choices[0].message?.content || "";
+}
 
-  const segmindResponse = await sdxl.generate({
-    prompt: prompt,
-    negativePrompt:
-      "ugly, tiling, poorly drawn hands, poorly drawn feet, poorly drawn face, out of frame, extra limbs, disfigured, deformed, body out of frame, blurry, bad anatomy, blurred, watermark, grainy, signature, cut off, draft, (deformed, distorted, disfigured:1.3), poorly drawn, bad anatomy, wrong anatomy, extra limb, missing limb, floating limbs, (mutated hands and fingers:1.4), disconnected limbs, mutation, mutated, ugly, disgusting, blurry, amputation, render, 3d, 2d, sketch, painting, digital art, drawing, disfigured, ((nsfw)), ((breasts))",
-    scheduler: "dpmpp_2m",
-    num_inference_steps: 25,
-    guidance_scale: 6,
+async function generateSigmindImage(prompt: string): Promise<any> {
+  const sdxl = new SDXL(apiKey);
+
+  const sigmindResponse = await sdxl.generate({
+    prompt,
+    style: "base",
     samples: 1,
-    seed: 4082622942,
-    img_width: 512,
-    img_height: 768,
+    scheduler: "UniPC",
+    num_inference_steps: 25,
+    guidance_scale: 8,
+    strength: 0.2,
+    high_noise_fraction: 0.8,
+    seed: 468685,
+    img_width: 1024,
+    img_height: 1024,
+    refiner: true,
     base64: true,
   });
 
-  const imageBuffer = segmindResponse.data;
-  if (!imageBuffer) {
+  if (!sigmindResponse.data) {
+    console.log(sigmindResponse);
     throw new ApplicationError("Error generating image");
   }
 
+  return sigmindResponse.data;
+}
+
+async function uploadImageToSupabase(imageBuffer: any): Promise<string> {
   const timestamp = new Date().toISOString().replace(/[^0-9]/g, "");
   const filePath = `blog2_${timestamp}`;
 
@@ -108,13 +78,21 @@ export async function createCompletion(prompt: string): Promise<any> {
     });
 
   if (error) {
+    console.log(error);
     throw new ApplicationError("Unable to upload image");
   }
 
-  const path = data.path;
-  const imageUrl = `${projectId}/storage/v1/object/public/images/${path}`;
+  return data.path;
+}
 
-  const { data: blogData, error: blogError } = await supabaseClient
+async function createBlogPostInSupabase(
+  prompt: string,
+  blogContent: string,
+  imagePath: string
+): Promise<number> {
+  const imageUrl = `${projectId}/storage/v1/object/public/images/${imagePath}`;
+
+  const { data, error } = await supabaseClient
     .from("blogs")
     .insert([
       {
@@ -126,9 +104,30 @@ export async function createCompletion(prompt: string): Promise<any> {
     ])
     .select();
 
-  if (blogError) {
+  if (error) {
     throw new Error("Failed to create blog post");
   }
-  const blogId = blogData[0].id;
-  redirect(`/blog/${blogId}`);
+
+  return data[0].id;
+}
+
+export async function createCompletion(prompt: string): Promise<void> {
+  try {
+    validateInputs(prompt);
+
+    const blogContent = await createOpenAICompletion(prompt);
+    const imageBuffer = await generateSigmindImage(prompt);
+    const imagePath = await uploadImageToSupabase(imageBuffer);
+    const blogId = await createBlogPostInSupabase(
+      prompt,
+      blogContent,
+      imagePath
+    );
+    revalidatePath("/");
+    redirect(`/blog/${blogId}`);
+  } catch (error) {
+    // Handle or log error
+    console.error(error);
+    throw error;
+  }
 }

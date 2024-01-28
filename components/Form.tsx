@@ -25,16 +25,7 @@ const Form = () => {
     }
     try {
       const result = await createCompletion(prompt as string);
-      if (result.error) {
-        toast.error(
-          "An error occurred while generating the blog post. Please try again."
-        );
-        console.error("Error", result);
-      } else {
-        console.log({ result });
-        // Handle success scenario,
-      }
-    } catch (error: any) {
+    } catch (error) {
       toast.error(
         "An error occurred while processing your request. Please try again."
       );

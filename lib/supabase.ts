@@ -20,11 +20,10 @@ export const getBlogById = async (id: number) => {
   return blog;
 };
 
-export const getAllBlogs = async (page: number, limit: number) => {
+export const getAllBlogs = async () => {
   const allBlogs = await supabaseClient
     .from("blogs")
     .select()
-    .order("created_at", { ascending: false })
-    .range(page, limit);
+    .order("created_at", { ascending: false });
   return allBlogs;
 };
