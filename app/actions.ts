@@ -4,7 +4,7 @@ import { ApplicationError } from "@/lib/error";
 import { supabaseClient } from "@/lib/supabase";
 import OpenAI from "openai";
 import { decode } from "base64-arraybuffer";
-import { SDXL } from "segmind-npm";
+import { RealisticVision } from "segmind-npm";
 import { redirect } from "next/navigation";
 
 const apiKey = process.env.NEXT_PUBLIC_SIGMIND_API_KEY;
@@ -27,40 +27,73 @@ export async function createCompletion(prompt: string): Promise<any> {
   }
 
   const openai = new OpenAI({ apiKey: openAiKey });
-  const sdxl = new SDXL(apiKey);
+  const sdxl = new RealisticVision(apiKey);
 
   const chatCompletion = await openai.chat.completions.create({
     messages: [
       {
         role: "system",
         content:
-          "You are a helpful assistant that's going to create a well-researched and SEO-optimized blog post.",
+          "You are a helpful assistant. Your task is to create a well-researched, SEO-optimized blog post in markdown format.",
       },
-      { role: "user", content: prompt },
+      {
+        role: "user",
+        content: "Please ensure the title is SEO-friendly.",
+      },
+      {
+        role: "system",
+        content: "Understood. The title will be crafted to be SEO-friendly.",
+      },
+      {
+        role: "user",
+        content:
+          "The response should be a JSON object with keys for title, content, and tags.",
+      },
+      {
+        role: "system",
+        content: "The response will be provided in the specified JSON format.",
+      },
+      {
+        role: "user",
+        content:
+          "The content should also be SEO-friendly and formatted in markdown.",
+      },
+      {
+        role: "system",
+        content: "The content will be SEO-friendly and formatted in markdown.",
+      },
+      {
+        role: "user",
+        content:
+          "Lastly, I need the tags to be an array of strings relevant to the content of the title.",
+      },
+      {
+        role: "system",
+        content:
+          "The tags will be an array of strings relevant to the content of the title.",
+      },
     ],
     model: "gpt-3.5-turbo",
+    response_format: { type: "json_object" },
   });
 
   const blogContent = chatCompletion.choices[0].message?.content;
 
-  const sigmindResponse = await sdxl.generate({
+  const segmindResponse = await sdxl.generate({
     prompt: prompt,
     negativePrompt:
-      "ugly, tiling, poorly drawn hands, poorly drawn feet, poorly drawn face, out of frame, extra limbs, disfigured, deformed, body out of frame, blurry, bad anatomy, blurred, watermark, grainy, signature, cut off, draft",
-    style: "base",
-    samples: 1,
-    scheduler: "UniPC",
+      "ugly, tiling, poorly drawn hands, poorly drawn feet, poorly drawn face, out of frame, extra limbs, disfigured, deformed, body out of frame, blurry, bad anatomy, blurred, watermark, grainy, signature, cut off, draft, (deformed, distorted, disfigured:1.3), poorly drawn, bad anatomy, wrong anatomy, extra limb, missing limb, floating limbs, (mutated hands and fingers:1.4), disconnected limbs, mutation, mutated, ugly, disgusting, blurry, amputation, render, 3d, 2d, sketch, painting, digital art, drawing, disfigured, ((nsfw)), ((breasts))",
+    scheduler: "dpmpp_2m",
     num_inference_steps: 25,
-    guidance_scale: 8,
-    strength: 0.2,
-    high_noise_fraction: 0.8,
-    seed: 468685,
-    img_width: 1024,
-    img_height: 1024,
-    refiner: true,
+    guidance_scale: 6,
+    samples: 1,
+    seed: 4082622942,
+    img_width: 512,
+    img_height: 768,
     base64: true,
   });
-  const imageBuffer = sigmindResponse.data;
+
+  const imageBuffer = segmindResponse.data;
   if (!imageBuffer) {
     throw new ApplicationError("Error generating image");
   }
@@ -80,7 +113,7 @@ export async function createCompletion(prompt: string): Promise<any> {
 
   const path = data.path;
   const imageUrl = `${projectId}/storage/v1/object/public/images/${path}`;
-  // http://127.0.0.1:54321/storage/v1/object/public/images/blog2_20240128081426219
+
   const { data: blogData, error: blogError } = await supabaseClient
     .from("blogs")
     .insert([
