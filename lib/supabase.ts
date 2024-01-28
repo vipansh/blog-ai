@@ -12,19 +12,19 @@ if (!supabaseUrl || !supabaseServiceKey) {
 export const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
 export const getBlogById = async (id: number) => {
-  const { data, error } = await supabaseClient
+  const blog = await supabaseClient
     .from("blogs")
     .select()
     .eq("id", id)
     .single();
-  return data;
+  return blog;
 };
 
 export const getAllBlogs = async (page: number, limit: number) => {
-  const { data, error } = await supabaseClient
+  const allBlogs = await supabaseClient
     .from("blogs")
     .select()
     .order("created_at", { ascending: false })
     .range(page, limit);
-  return data;
+  return allBlogs;
 };

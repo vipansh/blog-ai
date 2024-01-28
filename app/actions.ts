@@ -5,6 +5,7 @@ import { supabaseClient } from "@/lib/supabase";
 import OpenAI from "openai";
 import { decode } from "base64-arraybuffer";
 import { SDXL } from "segmind-npm";
+import { redirect } from "next/navigation";
 
 const apiKey = process.env.NEXT_PUBLIC_SIGMIND_API_KEY;
 const openAiKey = process.env.OPENAI_KEY;
@@ -29,7 +30,14 @@ export async function createCompletion(prompt: string): Promise<any> {
   const sdxl = new SDXL(apiKey);
 
   const chatCompletion = await openai.chat.completions.create({
-    messages: [{ role: "user", content: "Say this is a test" }],
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are a helpful assistant that's going to create a well-researched and SEO-optimized blog post.",
+      },
+      { role: "user", content: prompt },
+    ],
     model: "gpt-3.5-turbo",
   });
 
@@ -37,6 +45,8 @@ export async function createCompletion(prompt: string): Promise<any> {
 
   const sigmindResponse = await sdxl.generate({
     prompt: prompt,
+    negativePrompt:
+      "ugly, tiling, poorly drawn hands, poorly drawn feet, poorly drawn face, out of frame, extra limbs, disfigured, deformed, body out of frame, blurry, bad anatomy, blurred, watermark, grainy, signature, cut off, draft",
     style: "base",
     samples: 1,
     scheduler: "UniPC",
@@ -69,8 +79,8 @@ export async function createCompletion(prompt: string): Promise<any> {
   }
 
   const path = data.path;
-  const imageUrl = `${projectId}.supabase.co/storage/v1/object/public/images/${path}`;
-
+  const imageUrl = `${projectId}/storage/v1/object/public/images/${path}`;
+  // http://127.0.0.1:54321/storage/v1/object/public/images/blog2_20240128081426219
   const { data: blogData, error: blogError } = await supabaseClient
     .from("blogs")
     .insert([
@@ -86,6 +96,6 @@ export async function createCompletion(prompt: string): Promise<any> {
   if (blogError) {
     throw new Error("Failed to create blog post");
   }
-
-  return { ...blogData, imageBuffer };
+  const blogId = blogData[0].id;
+  redirect(`/blog/${blogId}`);
 }

@@ -13,6 +13,8 @@ import {
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { toast } from "sonner";
+import { useFormStatus } from "react-dom";
+import { cn } from "@/lib/utils";
 
 const Form = () => {
   async function action(formData: FormData) {
@@ -24,14 +26,18 @@ const Form = () => {
     try {
       const result = await createCompletion(prompt as string);
       if (result.error) {
-        toast.error("An error occurred while generating the blog post. Please try again.");
+        toast.error(
+          "An error occurred while generating the blog post. Please try again."
+        );
         console.error("Error", result);
       } else {
         console.log({ result });
         // Handle success scenario,
       }
     } catch (error: any) {
-      toast.error("An error occurred while processing your request. Please try again.");
+      toast.error(
+        "An error occurred while processing your request. Please try again."
+      );
       console.error("Error", error);
     }
   }
@@ -45,11 +51,7 @@ const Form = () => {
             Generate a unique and engaging blog post in seconds
           </CardDescription>
         </CardHeader>
-        <form onSubmit={async (e) => {
-          e.preventDefault();
-          const formData = new FormData(e.target as HTMLFormElement);
-          await action(formData);
-        }}>
+        <form action={action}>
           <CardContent>
             <div className="grid w-full items-center gap-4">
               <div className="flex flex-col space-y-1.5">
@@ -63,9 +65,7 @@ const Form = () => {
             </div>
           </CardContent>
           <CardFooter className="flex justify-between">
-            <Button className="w-full" type="submit">
-              Generate Blog Post
-            </Button>
+            <FormButton />
           </CardFooter>
         </form>
       </Card>
@@ -74,3 +74,16 @@ const Form = () => {
 };
 
 export default Form;
+
+const FormButton = () => {
+  const { pending } = useFormStatus();
+  return (
+    <Button
+      className={cn("w-full", pending && "animate-pulse")}
+      type="submit"
+      disabled={pending}
+    >
+      {pending ? "Generating..." : "Generate Blog Post"}
+    </Button>
+  );
+};
