@@ -111,6 +111,8 @@ async function createBlogPostInSupabase(
   return data[0].id;
 }
 
+export const runtime = "edge";
+
 export async function createCompletion(prompt: string): Promise<void> {
   try {
     validateInputs(prompt);
@@ -131,7 +133,3 @@ export async function createCompletion(prompt: string): Promise<void> {
     throw error;
   }
 }
-
-export const config = {
-  runtime: "edge",
-};
