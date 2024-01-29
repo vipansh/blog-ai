@@ -26,7 +26,9 @@ const Form = () => {
       return;
     }
     try {
-      const result = await createCompletion(prompt as string);
+      // const result = await createCompletion(prompt as string);
+      const response = await fetch('/helloworld');
+      const data = await response.json();
     } catch (error) {
       toast.error(
         "An error occurred while processing your request. Please try again."
