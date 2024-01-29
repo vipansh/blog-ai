@@ -11,6 +11,8 @@ type Props = {
   };
 };
 
+export const runtime = "edge";
+
 const BlogPage = async ({ params: { id } }: Props) => {
   const {
     data: { content, imageUrl },
