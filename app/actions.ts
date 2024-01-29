@@ -131,3 +131,7 @@ export async function createCompletion(prompt: string): Promise<void> {
     throw error;
   }
 }
+
+export const config = {
+  runtime: "edge",
+};
