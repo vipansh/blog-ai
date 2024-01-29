@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils";
 
 const Form = () => {
   async function action(formData: FormData) {
+
+
     const prompt = formData.get("topic");
     if (!prompt) {
       toast.error("Please enter a topic name.");
